@@ -57,7 +57,7 @@ jobs:
 
             - name: Update deployment manifest with image info
               run: |
-                sed -i "s|REPLACE_IMAGE_TAG|$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG|g" deployment.yaml
+                sed -i "s|PLACEHOLDER_IMAGE_TAG|$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG|g" deployment.yaml
 
             - name: Deploy to AKS
               run: |
