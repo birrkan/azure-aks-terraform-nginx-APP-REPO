@@ -40,8 +40,8 @@ jobs:
         needs: build
         env:
             ACR_LOGIN_SERVER: ${{ secrets.DEV_ACR_NAME }}.azurecr.io
-            IMAGE_NAME: nginx
-            IMAGE_TAG: latest
+            IMAGE_NAME: birkan/nginx
+            IMAGE_TAG: ${{ github.sha }}
         steps:
             - name: Checkout code
               uses: actions/checkout@v2
