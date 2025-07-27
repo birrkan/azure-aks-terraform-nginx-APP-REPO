@@ -51,6 +51,10 @@ jobs:
               with:
                 creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+            - name: Attach ACR to AKS
+              run: |
+                az aks update --name ${{ secrets.AKS_CLUSTER_NAME }} --resource-group ${{ secrets.AKS_RESOURCE_GROUP }} --attach-acr ${{ secrets.DEV_ACR_NAME }}
+
             - name: Get AKS Credentials
               run: |
                 az aks get-credentials --resource-group ${{ secrets.AKS_RESOURCE_GROUP }} --name ${{ secrets.AKS_CLUSTER_NAME }} --overwrite-existing
