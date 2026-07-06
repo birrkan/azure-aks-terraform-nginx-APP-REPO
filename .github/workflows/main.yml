@@ -1,0 +1,83 @@
+name: Build and Deploy Nginx App
+
+on:
+    push:
+        branches:
+        - dev
+        - prod
+    workflow_dispatch:
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        env:
+            ACR_LOGIN_SERVER: ${{ secrets.DEV_ACR_NAME }}.azurecr.io
+            IMAGE_NAME: birkan/nginx
+            IMAGE_TAG: ${{ github.sha }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v2
+
+            - name: Log in to Azure
+              uses: azure/login@v1
+              with:
+                creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+            - name: Build Docker image
+              run: |
+                docker build -t $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG .
+
+            - name: Log in to Azure Container Registry
+              run: |
+                az acr login --name ${{ secrets.DEV_ACR_NAME }}
+
+            - name: Push Docker image to ACR
+              run: |
+                docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG
+
+    deploy:
+        runs-on: ubuntu-latest
+        needs: build
+        env:
+            ACR_LOGIN_SERVER: ${{ secrets.DEV_ACR_NAME }}.azurecr.io
+            IMAGE_NAME: birkan/nginx
+            IMAGE_TAG: ${{ github.sha }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v2
+
+            - name: Log in to Azure
+              uses: azure/login@v1
+              with:
+                creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+            - name: Attach ACR to AKS
+              run: |
+                az aks update --name ${{ secrets.AKS_CLUSTER_NAME }} --resource-group ${{ secrets.AKS_RESOURCE_GROUP }} --attach-acr ${{ secrets.DEV_ACR_NAME }}
+
+            - name: Get AKS Credentials
+              run: |
+                az aks get-credentials --resource-group ${{ secrets.AKS_RESOURCE_GROUP }} --name ${{ secrets.AKS_CLUSTER_NAME }} --overwrite-existing
+
+            - name: Update deployment manifest with image info
+              run: |
+                sed -i "s|PLACEHOLDER_IMAGE_TAG|$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG|g" deployment.yaml
+
+            - name: Deploy to AKS
+              run: |
+                kubectl apply -f deployment.yaml
+            
+            - name: Wait for Service External IP
+              run: |
+                echo "Waiting for external IP.."
+                for i in {1..10}; do
+                EXTERNAL_IP=$(kubectl get svc nginx-svc -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+                if [ -n "$EXTERNAL_IP" ]; then
+                    echo "Service is available at: http://$EXTERNAL_IP"
+                    exit 0
+                fi
+                echo "No external IP yet, sleeping for 15 seconds..."
+                sleep 15
+                done
+                echo "Timeout waiting for external IP"
+                exit 1
